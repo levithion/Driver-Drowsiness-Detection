@@ -6,3 +6,5 @@ scipy
 jax
 jaxlib
 streamlit
+imageio
+imageio-ffmpeg

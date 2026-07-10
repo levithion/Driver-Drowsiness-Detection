@@ -1,3 +1,6 @@
+import tempfile
+
+import imageio
 import streamlit as st
 
 from model_utils import predict_image
@@ -75,20 +78,62 @@ st.write("")
 
 left, right = st.columns([1.2, 0.8], gap="large")
 
+
+def analyze_video(video_bytes, sample_every_n_frames=15, max_frames=120):
+    frame_results = []
+
+    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=True) as temp_video:
+        temp_video.write(video_bytes)
+        temp_video.flush()
+
+        reader = imageio.get_reader(temp_video.name, format="ffmpeg")
+
+        for frame_index, frame in enumerate(reader):
+            if frame_index >= max_frames:
+                break
+
+            if frame_index % sample_every_n_frames != 0:
+                continue
+
+            image = frame[:, :, :3]
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=True) as temp_image:
+                imageio.imwrite(temp_image.name, image)
+                with open(temp_image.name, "rb") as image_file:
+                    label, confidence = predict_image(image_file.read())
+                    frame_results.append((frame_index, label, confidence))
+
+        reader.close()
+
+    if not frame_results:
+        raise ValueError("No usable frames were extracted from the video.")
+
+    drowsy_count = sum(1 for _, label, _ in frame_results if label == "Drowsy")
+    alert_count = len(frame_results) - drowsy_count
+    average_confidence = sum(confidence for _, _, confidence in frame_results) / len(frame_results)
+    final_label = "Drowsy" if drowsy_count > alert_count else "Alert"
+
+    return final_label, average_confidence, frame_results
+
 with left:
     source_mode = st.radio(
         "Input source",
-        ["Upload image", "Use camera"],
+        ["Upload image", "Upload video", "Use camera"],
         horizontal=True,
     )
 
     uploaded_file = None
     camera_image = None
+    video_file = None
 
     if source_mode == "Upload image":
         uploaded_file = st.file_uploader(
             "Choose an image",
             type=["jpg", "jpeg", "png", "webp"],
+        )
+    elif source_mode == "Upload video":
+        video_file = st.file_uploader(
+            "Choose a video",
+            type=["mp4", "mov", "avi", "mkv", "webm"],
         )
     else:
         camera_image = st.camera_input("Capture a frame")
@@ -121,8 +166,37 @@ with right:
 if image_source is not None:
     st.image(image_source, caption="Selected frame", use_container_width=True)
 
+if video_file is not None:
+    st.video(video_file)
+
 if run_prediction:
-    if image_source is None:
+    if source_mode == "Upload video":
+        if video_file is None:
+            st.error("Upload a video first.")
+        else:
+            with st.spinner("Analyzing video frames..."):
+                try:
+                    final_label, average_confidence, frame_results = analyze_video(video_file.getvalue())
+
+                    result_col, conf_col = st.columns(2)
+                    with result_col:
+                        st.metric("Prediction", final_label)
+                    with conf_col:
+                        st.metric("Average confidence", f"{average_confidence:.2%}")
+
+                    st.caption(f"Analyzed {len(frame_results)} sampled frames from the video.")
+
+                    if final_label == "Drowsy":
+                        st.error("High drowsiness risk detected in the video. Please take a break.")
+                    else:
+                        st.success("Driver appears alert across the sampled frames.")
+
+                    with st.expander("Frame-by-frame results"):
+                        for frame_index, label, confidence in frame_results:
+                            st.write(f"Frame {frame_index}: {label} ({confidence:.2%})")
+                except Exception as exc:
+                    st.exception(exc)
+    elif image_source is None:
         st.error("Upload or capture an image first.")
     else:
         image_bytes = image_source.getvalue()
