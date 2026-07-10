@@ -42,6 +42,9 @@ The model exhibits exceptional performance based on the training and evaluation 
 > [!IMPORTANT]
 > **Give the app a 1-2 second wait time after it starts detecting to test its results.** The system calculates a rolling average of consecutive frames to provide a stable prediction. It takes a brief moment for the initial buffer to fill up and provide an accurate state.
 
+> [!NOTE]
+> **Live Host Camera Feed:** The live camera feed might occasionally experience latency, low framerates, or fail to start on the live hosted demo. Real-time video processing combined with deep learning is highly resource-intensive, which can occasionally overwhelm the limited compute resources and memory of free hosting tiers like Streamlit Community Cloud. For the most stable and performant experience, it is highly recommended to run the application locally.
+
 ## Local Setup
 
 1. Install the required dependencies:
