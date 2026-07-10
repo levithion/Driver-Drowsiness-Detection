@@ -3,9 +3,11 @@ import numpy as np
 from PIL import Image
 import io
 import tensorflow as tf
+from pathlib import Path
 
 # Load the model
-model = tf.keras.models.load_model('drowsy_detect.keras')
+BASE_DIR = Path(__file__).resolve().parent
+model = tf.keras.models.load_model(BASE_DIR.parent / 'drowsy_detect.keras')
 print("Model loaded successfully!")
 
 def preprocess_image(image_bytes):
