@@ -62,12 +62,6 @@ st.markdown(
             font-size: 1.4rem;
             font-weight: 700;
         }
-        iframe[title="streamlit_webrtc.webrtc_streamer"] {
-            display: block;
-            margin: 0 auto;
-            width: 100% !important;
-            max-width: 760px;
-        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -183,16 +177,18 @@ with left:
             type=["mp4", "mov", "avi", "mkv", "webm"],
         )
     elif source_mode == "Live camera feed":
-        live_camera_ctx = webrtc_streamer(
-            key="driver-drowsiness-camera",
-            mode=WebRtcMode.SENDRECV,
-            rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
-            media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
-            video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True, "style": {"width": "100%", "margin": "0 auto", "display": "block", "max-width": "760px"}},
-            video_processor_factory=DrowsinessVideoProcessor,
-            async_processing=True,
-            desired_playing_state=True,
-        )
+        _, center_col, _ = st.columns([1, 6, 1])
+        with center_col:
+            live_camera_ctx = webrtc_streamer(
+                key="driver-drowsiness-camera",
+                mode=WebRtcMode.SENDRECV,
+                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+                media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
+                video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True, "style": {"width": "100%", "margin": "0 auto", "display": "block", "max-width": "760px"}},
+                video_processor_factory=DrowsinessVideoProcessor,
+                async_processing=True,
+                desired_playing_state=True,
+            )
 
     image_source = uploaded_file
 
