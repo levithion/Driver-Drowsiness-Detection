@@ -128,12 +128,12 @@ def predict_array(image_array):
 def prediction_from_raw(prediction):
     if prediction.ndim == 0 or prediction.size == 1:
         score = float(prediction.reshape(-1)[0])
-        label = 'Drowsy' if score > 0.5 else 'Alert'
-        confidence = score if label == 'Drowsy' else 1 - score
+        label = 'Alert' if score >= 0.5 else 'Drowsy'
+        confidence = score if label == 'Alert' else 1 - score
         return label, confidence
 
-    alert_score = float(prediction[0])
-    drowsy_score = float(prediction[1])
+    drowsy_score = float(prediction[0])
+    alert_score = float(prediction[1])
     label = 'Alert' if alert_score >= drowsy_score else 'Drowsy'
     confidence = alert_score if label == 'Alert' else drowsy_score
     return label, confidence
@@ -150,7 +150,7 @@ def predict_scores(image_array):
         score = float(prediction.reshape(-1)[0])
         return {'alert': score, 'drowsy': 1 - score}
 
-    return {'alert': float(prediction[0]), 'drowsy': float(prediction[1])}
+    return {'alert': float(prediction[1]), 'drowsy': float(prediction[0])}
 
 
 def predict_frame(image_array):
@@ -165,9 +165,9 @@ def predict_frame(image_array):
 
     if prediction.ndim == 0 or prediction.size == 1:
         score = float(prediction.reshape(-1)[0])
-        scores = {'alert': 1 - score, 'drowsy': score}
+        scores = {'alert': score, 'drowsy': 1 - score}
     else:
-        scores = {'alert': float(prediction[0]), 'drowsy': float(prediction[1])}
+        scores = {'alert': float(prediction[1]), 'drowsy': float(prediction[0])}
 
     return {
         'label': label,
