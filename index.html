@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drowsiness Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        #video {
+            margin: 20px auto;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .button.stop {
+            background-color: #f44336;
+        }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 18px;
+        }
+        .alert {
+            color: #f44336;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Drowsiness Detection</h1>
+        <video id="video" width="640" height="480" autoplay></video>
+        <canvas id="canvas" width="640" height="480" style="display: none;"></canvas>
+        <div>
+            <button id="startMonitoring" class="button">Start Monitoring</button>
+        </div>
+        <div id="status">Monitoring: Stopped</div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startButton = document.getElementById('startMonitoring');
+        const statusDiv = document.getElementById('status');
+        const resultDiv = document.getElementById('result');
+        let stream = null;
+        let isMonitoring = false;
+        let monitoringInterval = null;
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: {
+                        width: 640,
+                        height: 480
+                    }
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Error accessing camera:", err);
+                resultDiv.innerHTML = "Error: Could not access camera";
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        }
+
+        function captureAndAnalyze() {
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, 640, 480);
+            
+            canvas.toBlob((blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'capture.jpg');
+
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        resultDiv.innerHTML = `Error: ${data.error}`;
+                    } else {
+                        resultDiv.innerHTML = `Status: <span class="${data.prediction === 'Drowsy' ? 'alert' : ''}">${data.prediction}</span><br>Confidence: ${data.confidence}`;
+                        if (data.prediction === "Drowsy" && parseFloat(data.confidence) > 0.7) {
+                            new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1HPyo5PUxwlcDh7/rz6NTGrnxhTjosKDRFYIGow+Ht8+3d0L2Pb1A7LyQwQ1+Cp8Lg7PHx49bCpHhXPi0mLj5SdJ3E3uvw7OPUwa1+YkkyJSo3TGqVt+Dp7vPq3s23jGlKMyglM0hoi7jY6O7z7eDQvZ5yVj8sJi89UXOcwtzo7fHo28q8l3FNNicpN0pllbjZ6O/x6d/Oup9yVT0sJzA/VHacwdrl7vLq3sy+nXVROS4oOExnmb3b6e/y6t/Pu6F0VkAuJzA/VHWcwdrl7vPr38y+nHVROC0oN0xnmb3b6O7y6t/PvKF0VkAtJzA+U3ScwNrk7fLq3sy9nHRQNywmN0xmmLva6O7x6d7Nu6BzVT8sJi8+U3OawNnk7fHp3cu8m3RQNywmN0tlmLrZ5+3x6N3Mu6BzVT8sJi8+UnKawNnk7fHp3cu8m3RQNywmN0tlmLrZ5+3x6N3Mu6BzVT8sJi89UnKZwNnk7fHp3cu8m3RQNywnN0tlmLrZ5+7x6N3Mu6BzVT8tJi89UnKZv9nk7fHp3cu8m3RRNywnN0xmmLrZ6O3x6d3Mu6BzVT8tJjA+U3OawNnk7vLq3sy9nHRROC4oOExnmb3b6O7y6t/PvKF0VkAuKDA/VXacwdrm7vPr38y+nXVROi8pOk5pm7/d6u/z69/QvKJ2V0EwKTJBV3iexd3o7vPr4M29nXZTPCwlM0hooLvX5+zy6d7OuZxxUjwqJjdGYpK44Onv8+rd0LyfdVQ9LSYyQ1yHrMbd6+/z6d3Rup90VT4sJTVEXYuvx97s8vDl18WhfVlBLiYxQFh/pcHa6O7z7ODSwauCZk07LCg4S2aSst3m7fPu49fEq4NgTDUoKjhJZZGx3ebw8+zh1cSqgWBLNicpOElkkLDc5fDz7OHVxaqCYUw2KSo4SWWRst3m7/Tt4tbFrINiTjcpKzlKZ5Oz3ufv9O3i1sSrg2FMNigpN0hkkLDb5e/z7OHUxKmBX0s2Jyk3SGOPr9vk7/Pr4NTDqYFeSzYoKjhJZZKy3ebw8+zh1cWqgmFM').play();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    resultDiv.innerHTML = 'Error processing request';
+                });
+            }, 'image/jpeg');
+        }
+
+        function startMonitoring() {
+            if (!isMonitoring) {
+                startCamera();
+                monitoringInterval = setInterval(captureAndAnalyze, 2000); // Capture every 2 seconds
+                isMonitoring = true;
+                startButton.textContent = 'Stop Monitoring';
+                startButton.classList.add('stop');
+                statusDiv.innerHTML = 'Monitoring: Active';
+            } else {
+                clearInterval(monitoringInterval);
+                stopCamera();
+                isMonitoring = false;
+                startButton.textContent = 'Start Monitoring';
+                startButton.classList.remove('stop');
+                statusDiv.innerHTML = 'Monitoring: Stopped';
+                resultDiv.innerHTML = '';
+            }
+        }
+
+        startButton.addEventListener('click', startMonitoring);
+    </script>
+</body>
+</html>
