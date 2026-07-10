@@ -5,7 +5,7 @@ import io
 import tensorflow as tf
 
 # Load the model
-model = tf.keras.models.load_model('/Users/shshank/Documents/Project/Driver Drowsiness Detection/drowsy_detect.keras')
+model = tf.keras.models.load_model('drowsy_detect.keras')
 print("Model loaded successfully!")
 
 def preprocess_image(image_bytes):
