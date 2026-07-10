@@ -10,6 +10,12 @@ import model_utils
 import os
 from twilio.rest import Client
 
+st.set_page_config(
+    page_title="Driver Drowsiness Detection",
+    page_icon="🚗",
+    layout="centered",
+)
+
 @st.cache_data
 def get_ice_servers():
     """Use Twilio's REST API to create custom ICE servers for WebRTC"""
@@ -23,11 +29,6 @@ def get_ice_servers():
     client = Client(account_sid, auth_token)
     token = client.tokens.create()
     return token.ice_servers
-st.set_page_config(
-    page_title="Driver Drowsiness Detection",
-    page_icon="🚗",
-    layout="centered",
-)
 
 st.markdown(
     """
