@@ -2,8 +2,10 @@ import tempfile
 
 import imageio
 import streamlit as st
+from streamlit_webrtc import RTCConfiguration, WebRtcMode, VideoProcessorBase, webrtc_streamer
+from streamlit_autorefresh import st_autorefresh
 
-from model_utils import predict_image
+import model_utils
 
 
 st.set_page_config(
@@ -99,7 +101,7 @@ def analyze_video(video_bytes, sample_every_n_frames=15, max_frames=120):
             with tempfile.NamedTemporaryFile(suffix=".jpg", delete=True) as temp_image:
                 imageio.imwrite(temp_image.name, image)
                 with open(temp_image.name, "rb") as image_file:
-                    label, confidence = predict_image(image_file.read())
+                    label, confidence = model_utils.predict_image(image_file.read())
                     frame_results.append((frame_index, label, confidence))
 
         reader.close()
@@ -114,16 +116,37 @@ def analyze_video(video_bytes, sample_every_n_frames=15, max_frames=120):
 
     return final_label, average_confidence, frame_results
 
+
+class DrowsinessVideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.frame_count = 0
+        self.prediction = "Waiting"
+        self.confidence = 0.0
+
+    def process(self, frame):
+        image = frame.to_ndarray(format="rgb24")
+        self.frame_count += 1
+
+        if self.frame_count % 8 == 0:
+            try:
+                self.prediction, self.confidence = model_utils.predict_array(image)
+            except Exception as exc:
+                self.prediction = "Error"
+                self.confidence = 0.0
+                st.session_state["live_camera_error"] = str(exc)
+
+        return frame
+
 with left:
     source_mode = st.radio(
         "Input source",
-        ["Upload image", "Upload video", "Use camera"],
+        ["Upload image", "Upload video", "Live camera feed"],
         horizontal=True,
     )
 
     uploaded_file = None
-    camera_image = None
     video_file = None
+    live_camera_ctx = None
 
     if source_mode == "Upload image":
         uploaded_file = st.file_uploader(
@@ -135,10 +158,19 @@ with left:
             "Choose a video",
             type=["mp4", "mov", "avi", "mkv", "webm"],
         )
-    else:
-        camera_image = st.camera_input("Capture a frame")
+    elif source_mode == "Live camera feed":
+        live_camera_ctx = webrtc_streamer(
+            key="driver-drowsiness-camera",
+            mode=WebRtcMode.SENDRECV,
+            rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+            media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
+            video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True},
+            video_processor_factory=DrowsinessVideoProcessor,
+            async_processing=True,
+            desired_playing_state=True,
+        )
 
-    image_source = uploaded_file if uploaded_file is not None else camera_image
+    image_source = uploaded_file
 
     run_prediction = st.button("Run Detection", type="primary", use_container_width=True)
 
@@ -169,6 +201,27 @@ if image_source is not None:
 if video_file is not None:
     st.video(video_file)
 
+if source_mode == "Live camera feed" and live_camera_ctx is not None:
+    if live_camera_ctx.state.playing and live_camera_ctx.video_processor is not None:
+        st_autorefresh(interval=500, limit=None, key="live_camera_refresh")
+        processor = live_camera_ctx.video_processor
+        st.caption("Live camera feed is running and analyzing frames in real time.")
+        result_col, conf_col = st.columns(2)
+        with result_col:
+            st.metric("Prediction", processor.prediction)
+        with conf_col:
+            st.metric("Confidence", f"{processor.confidence:.2%}")
+
+        if processor.prediction == "Drowsy":
+            st.error("High drowsiness risk detected in the live camera feed. Please take a break.")
+        elif processor.prediction == "Alert":
+            st.success("Driver appears alert in the live camera feed.")
+
+        if "live_camera_error" in st.session_state:
+            st.warning(f"Live camera error: {st.session_state['live_camera_error']}")
+    else:
+        st.info("Starting the live camera feed. If it does not appear, click the Start button in the video panel once to grant camera access.")
+
 if run_prediction:
     if source_mode == "Upload video":
         if video_file is None:
@@ -196,6 +249,8 @@ if run_prediction:
                             st.write(f"Frame {frame_index}: {label} ({confidence:.2%})")
                 except Exception as exc:
                     st.exception(exc)
+    elif source_mode == "Live camera feed":
+        st.info("Start the live camera feed above to analyze video in real time.")
     elif image_source is None:
         st.error("Upload or capture an image first.")
     else:
@@ -203,7 +258,7 @@ if run_prediction:
 
         with st.spinner("Analyzing frame..."):
             try:
-                label, confidence = predict_image(image_bytes)
+                label, confidence = model_utils.predict_image(image_bytes)
 
                 result_col, conf_col = st.columns(2)
                 with result_col:
