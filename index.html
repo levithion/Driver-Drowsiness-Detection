@@ -68,7 +68,7 @@
         const startButton = document.getElementById('startMonitoring');
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
-        const predictEndpoint = window.PREDICT_ENDPOINT || '/predict';
+        const predictEndpoint = window.PREDICT_ENDPOINT || '/api/predict';
         let stream = null;
         let isMonitoring = false;
         let monitoringInterval = null;
