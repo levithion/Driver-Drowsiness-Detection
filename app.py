@@ -1,4 +1,5 @@
 import tempfile
+from collections import deque
 
 import imageio
 import streamlit as st
@@ -61,6 +62,22 @@ st.markdown(
             font-size: 1.4rem;
             font-weight: 700;
         }
+        .camera-center {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        .camera-center iframe {
+            max-width: 760px;
+            width: 100% !important;
+            margin: 0 auto !important;
+        }
+        .camera-center video {
+            max-width: 760px;
+            width: 100% !important;
+            margin: 0 auto !important;
+            display: block;
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -120,16 +137,33 @@ def analyze_video(video_bytes, sample_every_n_frames=15, max_frames=120):
 class DrowsinessVideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.frame_count = 0
-        self.prediction = "Waiting"
+        self.prediction = "Starting..."
         self.confidence = 0.0
+        self.crop_mode = "full_frame"
+        self.recent_drowsy_scores = deque(maxlen=12)
+        self.recent_alert_scores = deque(maxlen=12)
 
-    def process(self, frame):
+    def recv(self, frame):
         image = frame.to_ndarray(format="rgb24")
         self.frame_count += 1
 
         if self.frame_count % 8 == 0:
             try:
-                self.prediction, self.confidence = model_utils.predict_array(image)
+                result = model_utils.predict_frame(image)
+                scores = result["scores"]
+                self.recent_alert_scores.append(scores["alert"])
+                self.recent_drowsy_scores.append(scores["drowsy"])
+                self.crop_mode = result["crop_mode"]
+
+                average_alert = sum(self.recent_alert_scores) / len(self.recent_alert_scores)
+                average_drowsy = sum(self.recent_drowsy_scores) / len(self.recent_drowsy_scores)
+
+                if average_drowsy >= 0.75 and average_drowsy > average_alert:
+                    self.prediction = "Drowsy"
+                    self.confidence = average_drowsy
+                else:
+                    self.prediction = "Alert"
+                    self.confidence = average_alert
             except Exception as exc:
                 self.prediction = "Error"
                 self.confidence = 0.0
@@ -159,6 +193,7 @@ with left:
             type=["mp4", "mov", "avi", "mkv", "webm"],
         )
     elif source_mode == "Live camera feed":
+        st.markdown('<div class="camera-center">', unsafe_allow_html=True)
         live_camera_ctx = webrtc_streamer(
             key="driver-drowsiness-camera",
             mode=WebRtcMode.SENDRECV,
@@ -169,6 +204,7 @@ with left:
             async_processing=True,
             desired_playing_state=True,
         )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     image_source = uploaded_file
 
@@ -206,6 +242,7 @@ if source_mode == "Live camera feed" and live_camera_ctx is not None:
         st_autorefresh(interval=500, limit=None, key="live_camera_refresh")
         processor = live_camera_ctx.video_processor
         st.caption("Live camera feed is running and analyzing frames in real time.")
+        st.caption(f"Crop mode: {processor.crop_mode}")
         result_col, conf_col = st.columns(2)
         with result_col:
             st.metric("Prediction", processor.prediction)
