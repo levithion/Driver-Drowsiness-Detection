@@ -7,28 +7,12 @@ from streamlit_webrtc import RTCConfiguration, WebRtcMode, VideoProcessorBase, w
 from streamlit_autorefresh import st_autorefresh
 
 import model_utils
-import os
-from twilio.rest import Client
 
 st.set_page_config(
     page_title="Driver Drowsiness Detection",
     page_icon="🚗",
     layout="centered",
 )
-
-@st.cache_data
-def get_ice_servers():
-    """Use Twilio's REST API to create custom ICE servers for WebRTC"""
-    try:
-        account_sid = st.secrets["TWILIO_ACCOUNT_SID"]
-        auth_token = st.secrets["TWILIO_AUTH_TOKEN"]
-    except KeyError:
-        print("Twilio secrets not found. Falling back to free STUN.")
-        return [{"urls": ["stun:stun.l.google.com:19302"]}]
-
-    client = Client(account_sid, auth_token)
-    token = client.tokens.create()
-    return token.ice_servers
 
 st.markdown(
     """
@@ -197,7 +181,7 @@ with left:
             live_camera_ctx = webrtc_streamer(
                 key="driver-drowsiness-camera",
                 mode=WebRtcMode.SENDRECV,
-                rtc_configuration=RTCConfiguration({"iceServers": get_ice_servers()}),
+                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
                 media_stream_constraints={"video": {"facingMode": "user"}, "audio": False},
                 video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True, "style": {"width": "100%", "margin": "0 auto", "display": "block", "max-width": "760px"}},
                 video_processor_factory=DrowsinessVideoProcessor,
@@ -207,7 +191,10 @@ with left:
 
     image_source = uploaded_file
 
-    run_prediction = st.button("Run Detection", type="primary", use_container_width=True)
+    if source_mode != "Live camera feed":
+        run_prediction = st.button("Run Detection", type="primary", use_container_width=True)
+    else:
+        run_prediction = False
 
 with right:
     st.markdown(
@@ -251,23 +238,26 @@ if source_mode == "Live camera feed" and live_camera_ctx is not None:
         if processor.prediction == "Drowsy":
             st.error("High drowsiness risk detected in the live camera feed. Please take a break.")
             
-            # Generate a 0.5s beep sound
-            import numpy as np
-            sample_rate = 8000
-            t = np.linspace(0, 0.5, int(sample_rate * 0.5), False)
-            beep = np.sin(2 * np.pi * 800 * t)
+            # Robust HTML5 audio that survives the 500ms Streamlit autorefresh loop
+            @st.cache_data
+            def get_beep_b64():
+                import numpy as np
+                import scipy.io.wavfile as wav
+                import base64
+                import io
+                
+                sample_rate = 8000
+                t = np.linspace(0, 0.5, int(sample_rate * 0.5), False)
+                beep = np.sin(2 * np.pi * 800 * t)
+                beep = (beep * 32767).astype(np.int16)
+                
+                buf = io.BytesIO()
+                wav.write(buf, sample_rate, beep)
+                return base64.b64encode(buf.getvalue()).decode()
             
-            st.audio(beep, sample_rate=sample_rate, autoplay=True)
-            
-            # Hide the audio player so it doesn't clutter the UI
+            beep_b64 = get_beep_b64()
             st.markdown(
-                """
-                <style>
-                    [data-testid="stAudio"] {
-                        display: none;
-                    }
-                </style>
-                """,
+                f'<audio autoplay loop style="visibility: hidden; position: absolute;"><source src="data:audio/wav;base64,{beep_b64}" type="audio/wav"></audio>',
                 unsafe_allow_html=True,
             )
 

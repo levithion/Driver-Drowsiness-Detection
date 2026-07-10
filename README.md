@@ -28,7 +28,7 @@ It includes transfer learning from the base MobileNetV2 with custom Dense layers
 
 The model was trained on the [Driver Drowsiness Dataset (DDD)](https://www.kaggle.com/datasets/ismailnasri20/driver-drowsiness-dataset-ddd) from Kaggle. 
 The dataset contains a total of **41,793 images** split into two categories:
-- **Drowsy**: Eyes closed or mostly closed.
+- **Drowsy**: Eyes closed or mostly closed, as well as individuals yawning.
 - **Non Drowsy (Alert)**: Eyes open and focused.
 
 ### Accuracy

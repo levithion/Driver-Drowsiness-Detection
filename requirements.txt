@@ -11,4 +11,3 @@ imageio
 imageio-ffmpeg
 streamlit-autorefresh
 opencv-python-headless
-twilio
