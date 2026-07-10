@@ -1,7 +1,6 @@
 # Driver Drowsiness Detection
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://driver-drowsiness-detection-system.streamlit.app)
-*(Add your live demo link above!)*
+**Live Demo:** [https://driver-drowsiness-detection-system.streamlit.app](https://driver-drowsiness-detection-system.streamlit.app)
 
 A real-time web application to detect driver drowsiness using a deep learning model and a webcam feed.
 
