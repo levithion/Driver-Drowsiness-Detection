@@ -9,3 +9,5 @@ streamlit
 streamlit-webrtc
 imageio
 imageio-ffmpeg
+streamlit-autorefresh
+opencv-python-headless
