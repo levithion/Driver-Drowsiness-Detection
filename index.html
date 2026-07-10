@@ -68,6 +68,7 @@
         const startButton = document.getElementById('startMonitoring');
         const statusDiv = document.getElementById('status');
         const resultDiv = document.getElementById('result');
+        const predictEndpoint = window.PREDICT_ENDPOINT || '/predict';
         let stream = null;
         let isMonitoring = false;
         let monitoringInterval = null;
@@ -102,11 +103,26 @@
                 const formData = new FormData();
                 formData.append('file', blob, 'capture.jpg');
 
-                fetch('/predict', {
+                fetch(predictEndpoint, {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(async (response) => {
+                    const responseText = await response.text();
+                    let data = null;
+
+                    try {
+                        data = responseText ? JSON.parse(responseText) : null;
+                    } catch (parseError) {
+                        throw new Error(`HTTP ${response.status}: ${responseText.slice(0, 200)}`);
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(data && data.error ? data.error : `HTTP ${response.status}`);
+                    }
+
+                    return data;
+                })
                 .then(data => {
                     if (data.error) {
                         resultDiv.innerHTML = `Error: ${data.error}`;
@@ -119,7 +135,7 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    resultDiv.innerHTML = 'Error processing request';
+                    resultDiv.innerHTML = `Error processing request: ${error.message}`;
                 });
             }, 'image/jpeg');
         }
