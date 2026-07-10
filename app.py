@@ -235,6 +235,27 @@ if source_mode == "Live camera feed" and live_camera_ctx is not None:
 
         if processor.prediction == "Drowsy":
             st.error("High drowsiness risk detected in the live camera feed. Please take a break.")
+            
+            # Generate a 0.5s beep sound
+            import numpy as np
+            sample_rate = 8000
+            t = np.linspace(0, 0.5, int(sample_rate * 0.5), False)
+            beep = np.sin(2 * np.pi * 800 * t)
+            
+            st.audio(beep, sample_rate=sample_rate, autoplay=True)
+            
+            # Hide the audio player so it doesn't clutter the UI
+            st.markdown(
+                """
+                <style>
+                    [data-testid="stAudio"] {
+                        display: none;
+                    }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
         elif processor.prediction == "Alert":
             st.success("Driver appears alert in the live camera feed.")
 
