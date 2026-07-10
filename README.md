@@ -10,7 +10,7 @@ The application captures video frames from a live camera feed (or an uploaded vi
 
 The application leverages Streamlit for the user interface and `streamlit-webrtc` to handle the live camera stream processing seamlessly in the browser. 
 
-The live feed computes a rolling average over the most recent frames to smooth out minor glitches (like quick blinks) and ensures a reliable state evaluation. If the "Drowsy" prediction score surpasses the "Alert" score, the app displays a prominent warning to the user.
+The live feed computes a rolling average over the most recent frames to smooth out minor glitches (like quick blinks) and ensures a reliable state evaluation. If the "Drowsy" prediction score surpasses the "Alert" score, the app displays a prominent visual warning and plays an audible beep to alert the driver.
 
 ## Technology Stack
 - **Frontend & App Framework**: [Streamlit](https://streamlit.io/)
